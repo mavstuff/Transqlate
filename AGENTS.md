@@ -108,6 +108,8 @@ Verify row counts in `manifest.json` match `SELECT COUNT(*)` on PG.
 - **Binary data** is hex in TSV; import decodes via `parse_cell`.
 - **`reset_identity_sequences`** uses `pg_get_serial_sequence` on the qualified PG table name after import.
 - Do not commit secrets; use env vars only in docs/examples.
+- Passwords: `resolve_password()` in `config.py` — uses CLI/env when set, else `getpass` prompt in `mssql/connection.py` and `postgres/connection.py`.
+
 
 ## Commit style
 

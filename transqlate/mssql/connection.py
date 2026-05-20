@@ -10,7 +10,7 @@ except ImportError as exc:
 else:
     _IMPORT_ERROR = None
 
-from transqlate.config import require
+from transqlate.config import require, resolve_password
 
 
 def ensure_pymssql() -> None:
@@ -27,7 +27,9 @@ def connect_mssql(args: argparse.Namespace) -> "pymssql.Connection":
         server=require(args.mssql_server, "MSSQL server"),
         port=args.mssql_port,
         user=require(args.mssql_user, "MSSQL user"),
-        password=require(args.mssql_password, "MSSQL password"),
+        password=resolve_password(
+            args.mssql_password, prompt="MSSQL password: "
+        ),
         database=require(args.mssql_database, "MSSQL database"),
         as_dict=True,
     )

@@ -10,7 +10,7 @@ except ImportError as exc:
 else:
     _IMPORT_ERROR = None
 
-from transqlate.config import require
+from transqlate.config import require, resolve_password
 
 
 def ensure_psycopg2() -> None:
@@ -28,5 +28,7 @@ def connect_postgres(args: argparse.Namespace) -> "psycopg2.extensions.connectio
         port=args.postgres_port,
         dbname=require(args.postgres_database, "PostgreSQL database"),
         user=require(args.postgres_user, "PostgreSQL user"),
-        password=require(args.postgres_password, "PostgreSQL password"),
+        password=resolve_password(
+            args.postgres_password, prompt="PostgreSQL password: "
+        ),
     )

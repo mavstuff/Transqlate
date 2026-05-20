@@ -23,7 +23,17 @@ pip install -r requirements.txt
 
 ### 1. Export on Windows (SQL Server host)
 
+Pass connection settings on the command line:
+
 ```bash
+python tq.py export --output myapp-export.zip ^
+  --mssql-server localhost --mssql-port 1433 ^
+  --mssql-database MyApp --mssql-user sa --mssql-password secret
+```
+
+Or set environment variables and omit the flags (cmd.exe):
+
+```bat
 set MSSQL_SERVER=localhost
 set MSSQL_PORT=1433
 set MSSQL_DATABASE=MyApp
@@ -39,6 +49,16 @@ Copy `myapp-export.zip` (or the export folder) to the PostgreSQL host.
 
 ### 3. Import on Linux (or any host with network access to PostgreSQL)
 
+Pass connection settings on the command line:
+
+```bash
+python tq.py import --input myapp-export.zip --drop-existing \
+  --postgres-host localhost --postgres-port 5432 \
+  --postgres-database myapp --postgres-user myapp --postgres-password secret
+```
+
+Or set environment variables and omit the flags:
+
 ```bash
 export POSTGRES_HOST=localhost
 export POSTGRES_PORT=5432
@@ -50,6 +70,8 @@ python tq.py import --input myapp-export.zip --drop-existing
 ```
 
 `--drop-existing` drops and recreates tables (destructive). Omit it when loading into empty tables created manually.
+
+If `--mssql-password` or `--postgres-password` is omitted (and not set via `MSSQL_PASSWORD` / `POSTGRES_PASSWORD`), you are prompted interactively; input is not echoed.
 
 ## Dump layout
 
@@ -87,26 +109,45 @@ python tq.py export --help
 | `--mssql-port` | `MSSQL_PORT` | `1433` | TCP port |
 | `--mssql-database` | `MSSQL_DATABASE` | | Database name (required) |
 | `--mssql-user` | `MSSQL_USER` | | Login (required) |
-| `--mssql-password` | `MSSQL_PASSWORD` | | Password (required) |
+| `--mssql-password` | `MSSQL_PASSWORD` | | Password (prompted if omitted) |
 | `--mssql-schemas` | `MSSQL_SCHEMAS` | `dbo` | Comma-separated schemas |
 | `--exclude-tables` | | | `schema.table` to skip |
 | `--batch-size` | | `2000` | Rows per fetch |
 
-**Examples**
+**Examples (command line)**
 
 ```bash
 # Export dbo only to a directory
-python tq.py export --output ./dump --mssql-database Sales
+python tq.py export --output ./dump \
+  --mssql-server localhost --mssql-database Sales \
+  --mssql-user sa --mssql-password secret
 
 # Export dbo + custom schema to zip
-python tq.py export --output sales.zip --mssql-schemas dbo,audit --mssql-database Sales
+python tq.py export --output sales.zip --mssql-schemas dbo,audit \
+  --mssql-server localhost --mssql-database Sales \
+  --mssql-user sa --mssql-password secret
 
 # Skip a table
-python tq.py export --exclude-tables dbo.__MigrationHistory --mssql-database Sales
+python tq.py export --exclude-tables dbo.__MigrationHistory \
+  --mssql-database Sales --mssql-user sa --mssql-password secret
 
 # Remote SQL Server
 python tq.py export --mssql-server db.example.com --mssql-port 1433 \
-  --mssql-database MyApp --mssql-user migrator --mssql-password "%PASS%"
+  --mssql-database MyApp --mssql-user migrator --mssql-password "%PASS%" \
+  --output myapp-export.zip
+```
+
+**Examples (environment variables)**
+
+```bash
+export MSSQL_SERVER=db.example.com
+export MSSQL_PORT=1433
+export MSSQL_DATABASE=MyApp
+export MSSQL_USER=migrator
+export MSSQL_PASSWORD=secret
+export MSSQL_SCHEMAS=dbo,audit
+
+python tq.py export --output sales.zip --exclude-tables dbo.__MigrationHistory
 ```
 
 ### `tq import`
@@ -124,7 +165,7 @@ python tq.py import --help
 | `--postgres-port` | `POSTGRES_PORT` | `5432` | |
 | `--postgres-database` | `POSTGRES_DATABASE` | | Target DB (required) |
 | `--postgres-user` | `POSTGRES_USER` | | (required) |
-| `--postgres-password` | `POSTGRES_PASSWORD` | | (required) |
+| `--postgres-password` | `POSTGRES_PASSWORD` | | Password (prompted if omitted) |
 | `--postgres-schema` | `POSTGRES_SCHEMA` | | Force all tables into this PG schema |
 | `--batch-size` | | `500` | INSERT batch size |
 | `--no-truncate` | | | Keep existing rows (may duplicate PKs) |
@@ -134,29 +175,46 @@ python tq.py import --help
 | `--skip-foreign-keys` | | | Skip FK constraints |
 | `--schema-only` | | | DDL only, no data |
 
-**Examples**
+**Examples (command line)**
 
 ```bash
 # Full migration into a new database
 createdb myapp
-python tq.py import --input myapp-export.zip --postgres-database myapp \
-  --postgres-user myapp --postgres-password secret --drop-existing
+python tq.py import --input myapp-export.zip --drop-existing \
+  --postgres-host localhost --postgres-database myapp \
+  --postgres-user myapp --postgres-password secret
 
 # Data only (schema created manually)
 psql -d myapp -f schema.sql
-python tq.py import --input myapp-export.zip --no-create-schema
-
-# Reload data without dropping tables
-python tq.py import --input myapp-export.zip --drop-existing --schema-only
-python tq.py import --input myapp-export.zip --no-create-schema
+python tq.py import --input myapp-export.zip --no-create-schema \
+  --postgres-database myapp --postgres-user myapp --postgres-password secret
 
 # Map everything into a single PG schema
-python tq.py import --input dump.zip --postgres-schema app --drop-existing
+python tq.py import --input dump.zip --postgres-schema app --drop-existing \
+  --postgres-database myapp --postgres-user myapp --postgres-password secret
 
 # Staging: tables + data, defer FKs for speed
-python tq.py import --input dump.zip --skip-foreign-keys --drop-existing
-python tq.py import --input dump.zip --no-create-schema --no-truncate --schema-only
-# then add FKs manually or re-run with only FK DDL from `tq schema`
+python tq.py import --input dump.zip --skip-foreign-keys --drop-existing \
+  --postgres-database myapp --postgres-user myapp --postgres-password secret
+```
+
+**Examples (environment variables)**
+
+```bash
+export POSTGRES_HOST=localhost
+export POSTGRES_DATABASE=myapp
+export POSTGRES_USER=myapp
+export POSTGRES_PASSWORD=secret
+
+createdb myapp
+python tq.py import --input myapp-export.zip --drop-existing
+
+# Schema already applied manually
+python tq.py import --input myapp-export.zip --no-create-schema
+
+# Reload: DDL only, then data
+python tq.py import --input myapp-export.zip --drop-existing --schema-only
+python tq.py import --input myapp-export.zip --no-create-schema
 ```
 
 ### `tq schema`
@@ -197,10 +255,23 @@ Tables are ordered topologically using foreign-key dependencies so parent rows l
 ### Greenfield database
 
 ```bash
-python tq.py export --output prod.zip --mssql-database Prod ...
+python tq.py export --output prod.zip \
+  --mssql-server localhost --mssql-database Prod \
+  --mssql-user sa --mssql-password secret
+
 # on PG server
 createdb prod_pg
-python tq.py import --input prod.zip --postgres-database prod_pg --drop-existing
+python tq.py import --input prod.zip --drop-existing \
+  --postgres-host localhost --postgres-database prod_pg \
+  --postgres-user prod_pg --postgres-password secret
+```
+
+With env vars set (`MSSQL_*` / `POSTGRES_*`), the same flow is:
+
+```bash
+python tq.py export --output prod.zip
+createdb prod_pg
+python tq.py import --input prod.zip --drop-existing
 ```
 
 ### Review DDL before load
