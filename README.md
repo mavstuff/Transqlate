@@ -1,6 +1,71 @@
-# Transqlate
+<p align="center">
+  <img src="assets/logo.png" alt="Transqlate logo" width="180">
+</p>
 
-Migrate a Microsoft SQL Server database to PostgreSQL in two steps:
+<h1 align="center">Transqlate</h1>
+
+<p align="center">
+  <a href="https://github.com/mavstuff/Transqlate/actions/workflows/ci.yml">
+    <img src="https://github.com/mavstuff/Transqlate/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://codecov.io/gh/mavstuff/Transqlate">
+    <img src="https://codecov.io/gh/mavstuff/Transqlate/graph/badge.svg" alt="Codecov">
+  </a>
+  <a href="https://www.python.org/">
+    <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
+  </a>
+  <a href="LICENSE.txt">
+    <img src="https://img.shields.io/github/license/mavstuff/Transqlate?style=flat-square" alt="License: MIT">
+  </a>
+  <a href="https://github.com/mavstuff/Transqlate/security/dependabot">
+    <img src="https://img.shields.io/badge/dependabot-enabled-025e8c?logo=dependabot&logoColor=white" alt="Dependabot">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/mavstuff/Transqlate/releases">
+    <img src="https://img.shields.io/github/v/release/mavstuff/Transqlate?style=flat-square" alt="Release">
+  </a>
+  <a href="https://github.com/mavstuff/Transqlate/commits/master">
+    <img src="https://img.shields.io/github/last-commit/mavstuff/Transqlate?style=flat-square" alt="Last commit">
+  </a>
+  <a href="https://github.com/mavstuff/Transqlate/issues">
+    <img src="https://img.shields.io/github/issues/mavstuff/Transqlate?style=flat-square" alt="Open issues">
+  </a>
+  <a href="https://github.com/mavstuff/Transqlate/pulls">
+    <img src="https://img.shields.io/github/issues-pr/mavstuff/Transqlate?style=flat-square" alt="Open pull requests">
+  </a>
+  <a href="https://github.com/mavstuff/Transqlate/graphs/contributors">
+    <img src="https://img.shields.io/github/contributors/mavstuff/Transqlate?style=flat-square" alt="Contributors">
+  </a>
+  <a href="https://github.com/mavstuff/Transqlate/stargazers">
+    <img src="https://img.shields.io/github/stars/mavstuff/Transqlate?style=flat-square" alt="Stars">
+  </a>
+  <a href="https://github.com/mavstuff/Transqlate/network/members">
+    <img src="https://img.shields.io/github/forks/mavstuff/Transqlate?style=flat-square" alt="Forks">
+  </a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/SQL%20Server-%E2%86%92%20PostgreSQL-336791?logo=postgresql&logoColor=white" alt="SQL Server to PostgreSQL">
+  <a href="https://pypi.org/project/transqlate/">
+    <img src="https://img.shields.io/pypi/v/transqlate?style=flat-square&logo=pypi" alt="PyPI version">
+  </a>
+  <a href="https://pypi.org/project/transqlate/">
+    <img src="https://img.shields.io/pypi/dm/transqlate?style=flat-square&logo=pypi" alt="PyPI downloads">
+  </a>
+  <a href="https://github.com/mavstuff/Transqlate/issues?q=label%3Asecurity+is%3Aopen">
+    <img src="https://img.shields.io/github/issues-search/mavstuff/Transqlate?query=label%3Asecurity+is%3Aopen&style=flat-square&label=security%20issues" alt="Security issues">
+  </a>
+</p>
+
+<p align="center">
+  Migrate a Microsoft SQL Server database to PostgreSQL.
+</p>
+
+---
+
+Migrate in two steps:
 
 1. **Export** — dump data to a portable, human-readable UTF-8 TSV package (folder or `.zip`), with schema metadata discovered from the live MSSQL database.
 2. **Import** — recreate tables, foreign keys, and indexes in PostgreSQL, then load the TSV files.
