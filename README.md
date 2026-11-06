@@ -84,6 +84,34 @@ The main entry point is `tq.py`. The implementation lives in the `transqlate` pa
 pip install -r requirements.txt
 ```
 
+### Ubuntu / Debian (`apt`)
+
+Install these **before** `pip install -r requirements.txt` so native wheels or source builds succeed:
+
+| Package | Why |
+|--------|-----|
+| `python3`, `python3-venv`, `python3-pip` | Python runtime and isolated environments |
+| `build-essential` | Compiler toolchain when a wheel is missing and pip builds from source |
+| `freetds-dev` | Headers and libs for **pymssql** (FreeTDS) on export runs |
+| `libpq-dev` | PostgreSQL client headers if **psycopg2** / **psycopg2-binary** falls back to a source build on import |
+| `python3-psycopg2` (optional) | Debian/Ubuntu-packaged **psycopg2** for **system** `python3` only — use when you prefer apt over `pip install psycopg2-binary` |
+
+Minimal one-liner:
+
+```bash
+sudo apt update && sudo apt install -y python3 python3-venv python3-pip build-essential freetds-dev libpq-dev
+```
+
+`psycopg2-binary` usually installs from PyPI wheels without `libpq-dev`; keep `freetds-dev` (and `build-essential`) if `pip install pymssql` fails on your platform.
+
+**Alternative — system `psycopg2` from apt:** if you run Transqlate with the distro’s `python3` (not inside a venv), you can install the module from packages:
+
+```bash
+sudo apt install -y python3-psycopg2
+```
+
+Then you **do not** need `pip install psycopg2-binary` for import on that interpreter. A **venv** does not see system packages unless you create it with `--system-site-packages`. The supported path for this repo is still `pip install -r requirements.txt` inside a venv.
+
 ## Quick start
 
 ### 1. Export on Windows (SQL Server host)
