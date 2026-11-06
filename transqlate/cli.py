@@ -68,7 +68,7 @@ def run_schema_sql(args: argparse.Namespace) -> int:
     from transqlate.postgres.schema import (
         create_table_sql,
         foreign_key_sql,
-        index_sql,
+        index_statements,
     )
 
     dump_dir, tmp = resolve_dump_dir(Path(args.input))
@@ -93,8 +93,7 @@ def run_schema_sql(args: argparse.Namespace) -> int:
                     )
                 )
         if not args.skip_indexes:
-            for table in schema_doc.get("tables", []):
-                lines.extend(index_sql(table, args.postgres_schema))
+            lines.extend(index_statements(schema_doc, args.postgres_schema))
 
         text = "\n".join(lines) + "\n"
         if args.output == "-":

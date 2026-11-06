@@ -26,6 +26,7 @@ from transqlate.dump_format import (
 from transqlate.postgres.connection import connect_postgres, ensure_psycopg2
 from transqlate.types_map import is_string_type
 from transqlate.postgres.schema import (
+    apply_indexes,
     apply_schema,
     qualified_pg_table,
     reset_identity_sequences,
@@ -73,7 +74,7 @@ def add_import_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--no-create-schema",
         action="store_true",
-        help="Skip CREATE TABLE / FK / index DDL (schema must already exist)",
+        help="Skip CREATE TABLE / FK DDL (tables must already exist). Indexes are still created unless --skip-indexes",
     )
     parser.add_argument(
         "--drop-existing",
@@ -187,6 +188,8 @@ def run_import(args: argparse.Namespace) -> int:
 
         pg = connect_postgres(args)
         target_schema = args.postgres_schema
+        # Build indexes after the load so large tables are indexed once.
+        defer_indexes = not args.schema_only and not args.skip_indexes
         try:
             if not args.no_create_schema:
                 print("Applying PostgreSQL schema...")
@@ -195,10 +198,13 @@ def run_import(args: argparse.Namespace) -> int:
                     schema_doc,
                     target_schema=target_schema,
                     drop_existing=args.drop_existing,
-                    skip_indexes=args.skip_indexes,
+                    skip_indexes=args.skip_indexes or defer_indexes,
                     skip_foreign_keys=args.skip_foreign_keys,
                 )
                 print("Schema applied.")
+            elif args.schema_only and not args.skip_indexes:
+                print("Creating indexes...")
+                apply_indexes(pg, schema_doc, target_schema)
 
             if args.schema_only:
                 print("Schema-only mode; skipping data import.")
@@ -228,6 +234,9 @@ def run_import(args: argparse.Namespace) -> int:
                 grand_total += n
 
             reset_identity_sequences(pg, schema_doc, target_schema)
+            if defer_indexes:
+                print("Creating indexes...")
+                apply_indexes(pg, schema_doc, target_schema)
             print(f"Done. {grand_total} rows imported into PostgreSQL.")
         finally:
             pg.close()

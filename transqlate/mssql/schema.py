@@ -7,6 +7,17 @@ from typing import Any
 from transqlate.dump_format import table_key
 
 
+def _bit(value: Any) -> bool:
+    """SQL Server bit. pymssql may return bool, int, or one-byte bytes."""
+    if value is None:
+        return False
+    if isinstance(value, bytes):
+        return any(value)
+    if isinstance(value, str):
+        return value not in ("", "0", "False", "false")
+    return bool(value)
+
+
 def discover_schema(
     conn: Any,
     *,
@@ -116,8 +127,11 @@ def discover_schema(
                 i.is_unique,
                 i.is_primary_key,
                 i.type_desc,
+                i.has_filter,
+                i.filter_definition,
                 c.name AS column_name,
                 ic.key_ordinal,
+                ic.is_descending_key,
                 ic.is_included_column
             FROM sys.indexes i
             JOIN sys.tables t ON i.object_id = t.object_id
@@ -125,8 +139,10 @@ def discover_schema(
             JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
             JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
             WHERE s.name IN ({schema_filter})
-              AND i.type > 0
+              AND i.type IN (1, 2)
+              AND i.is_primary_key = 0
               AND i.is_hypothetical = 0
+              AND i.is_disabled = 0
             ORDER BY s.name, t.name, i.name, ic.key_ordinal, ic.index_column_id
             """
         )
@@ -180,7 +196,7 @@ def discover_schema(
 
     indexes_by_table: dict[str, dict[str, dict[str, Any]]] = {}
     for row in index_rows:
-        if row["is_primary_key"]:
+        if _bit(row["is_primary_key"]) or not row["index_name"]:
             continue
         key = table_key(row["table_schema"], row["table_name"])
         indexes_by_table.setdefault(key, {})
@@ -188,16 +204,20 @@ def discover_schema(
             row["index_name"],
             {
                 "name": row["index_name"],
-                "unique": bool(row["is_unique"]),
+                "unique": _bit(row["is_unique"]),
                 "type": row["type_desc"],
                 "columns": [],
+                "descending": [],
                 "included_columns": [],
             },
         )
-        if row["is_included_column"]:
+        if _bit(row.get("has_filter")) and row.get("filter_definition"):
+            idx["filter"] = str(row["filter_definition"])
+        if _bit(row["is_included_column"]):
             idx["included_columns"].append(row["column_name"])
-        elif row["key_ordinal"] > 0:
+        elif int(row["key_ordinal"] or 0) > 0:
             idx["columns"].append(row["column_name"])
+            idx["descending"].append(_bit(row["is_descending_key"]))
 
     for tr in table_rows:
         schema = tr["TABLE_SCHEMA"]
@@ -215,11 +235,28 @@ def discover_schema(
                 "columns": cols,
                 "primary_key": pk_by_table.get(key, []),
                 "foreign_keys": fks_by_table.get(key, []),
-                "indexes": list(indexes_by_table.get(key, {}).values()),
+                "indexes": _table_indexes(indexes_by_table.get(key, {})),
             }
         )
 
     return {"tables": tables}
+
+
+def _table_indexes(indexes: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    finished: list[dict[str, Any]] = []
+    for idx in indexes.values():
+        item = _finished_index(idx)
+        if item:
+            finished.append(item)
+    return finished
+
+
+def _finished_index(idx: dict[str, Any]) -> dict[str, Any] | None:
+    if not idx.get("columns"):
+        return None
+    if not any(idx.get("descending") or []):
+        idx.pop("descending", None)
+    return idx
 
 
 def bracket_columns(columns: list[str]) -> str:

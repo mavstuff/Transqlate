@@ -40,7 +40,7 @@ Changing on-disk format requires bumping `FORMAT_VERSION` in `dump_format.py` an
 |------|--------|
 | `types_map.py` | Add MSSQL type mappings; keep symmetric with `parse_cell` in `postgres/import_data.py` for binary/bool |
 | `mssql/schema.py` | Discovery queries; exclude computed columns from export |
-| `postgres/schema.py` | DDL generation; FK/index order: tables → FKs → indexes |
+| `postgres/schema.py` | DDL generation. `tq schema` order: tables, FKs, indexes. `tq import` creates indexes after data load |
 | `mssql/export.py` / `postgres/import_data.py` | Batch sizes, CLI flags only if behavior stays compatible |
 
 Avoid breaking existing dumps without a version bump.

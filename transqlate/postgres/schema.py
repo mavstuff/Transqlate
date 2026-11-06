@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import re
+import sys
 from typing import Any
 
 from transqlate.dump_format import pg_quote_ident, table_key
 from transqlate.types_map import pg_type_for_column
+
+_IDENT_RE = re.compile(r"\[((?:[^\]]|\]\])*)\]")
+_PG_IDENT_MAX_BYTES = 63
 
 
 def pg_schema_name(mssql_schema: str, target_schema: str | None) -> str:
@@ -83,25 +88,141 @@ def foreign_key_sql(
     return stmts
 
 
-def index_sql(table: dict[str, Any], target_schema: str | None) -> list[str]:
+def _truncate_ident(name: str, max_bytes: int = _PG_IDENT_MAX_BYTES) -> str:
+    encoded = name.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return name
+    return encoded[:max_bytes].decode("utf-8", errors="ignore")
+
+
+def _allocate_index_name(table_name: str, index_name: str, used: set[str]) -> str:
+    """Pick a schema-unique index name. PostgreSQL names are unique per schema."""
+    candidates = [index_name, f"{table_name}_{index_name}"]
+    seen: set[str] = set()
+    for raw in candidates:
+        candidate = _truncate_ident(raw)
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if candidate not in used:
+            used.add(candidate)
+            return candidate
+    base = _truncate_ident(f"{table_name}_{index_name}") or "idx"
+    n = 2
+    while True:
+        suffix = f"_{n}"
+        candidate = _truncate_ident(base, _PG_IDENT_MAX_BYTES - len(suffix.encode())) + suffix
+        if candidate not in used:
+            used.add(candidate)
+            return candidate
+        n += 1
+
+
+def pg_index_predicate(filter_sql: str, columns: list[dict[str, Any]]) -> str:
+    """Turn a SQL Server index filter into a PostgreSQL WHERE predicate."""
+
+    def repl(match: re.Match[str]) -> str:
+        return pg_quote_ident(match.group(1).replace("]]", "]"))
+
+    pred = _IDENT_RE.sub(repl, filter_sql)
+    pred = re.sub(r"(?<![\w])N'", "'", pred)
+    bit_cols = {
+        c["name"]
+        for c in columns
+        if (c.get("data_type") or "").lower() == "bit"
+    }
+    for name in bit_cols:
+        quoted = re.escape(pg_quote_ident(name))
+        pred = re.sub(
+            rf"{quoted}\s*=\s*\(?\s*1\s*\)?",
+            f"{pg_quote_ident(name)} IS TRUE",
+            pred,
+            flags=re.IGNORECASE,
+        )
+        pred = re.sub(
+            rf"{quoted}\s*=\s*\(?\s*0\s*\)?",
+            f"{pg_quote_ident(name)} IS FALSE",
+            pred,
+            flags=re.IGNORECASE,
+        )
+    return pred
+
+
+def index_sql(
+    table: dict[str, Any],
+    target_schema: str | None,
+    used_names: set[str],
+) -> list[str]:
     stmts: list[str] = []
     qualified = qualified_pg_table(table["schema"], table["name"], target_schema)
+    table_columns = {c["name"] for c in table.get("columns", [])}
+    label = f"{table['schema']}.{table['name']}"
     for idx in table.get("indexes", []):
-        if not idx.get("columns"):
+        descending = idx.get("descending") or []
+        key_parts: list[str] = []
+        for i, col in enumerate(idx.get("columns") or []):
+            if col not in table_columns:
+                print(
+                    f"Warning: skip computed or missing column {col} "
+                    f"in index {idx.get('name')} on {label}",
+                    file=sys.stderr,
+                )
+                continue
+            piece = pg_quote_ident(col)
+            if i < len(descending) and descending[i]:
+                piece += " DESC"
+            key_parts.append(piece)
+        if not key_parts:
+            print(
+                f"Warning: skip index {idx.get('name')} on {label}: no key columns",
+                file=sys.stderr,
+            )
             continue
-        unique = "UNIQUE " if idx.get("unique") else ""
-        cols = ", ".join(pg_quote_ident(c) for c in idx["columns"])
-        included = idx.get("included_columns") or []
-        # PostgreSQL supports INCLUDE for covering indexes
+        included = [
+            c
+            for c in (idx.get("included_columns") or [])
+            if c in table_columns
+        ]
         include_clause = ""
         if included:
             inc = ", ".join(pg_quote_ident(c) for c in included)
             include_clause = f" INCLUDE ({inc})"
-        idx_name = pg_quote_ident(idx["name"])
+        where_clause = ""
+        if idx.get("filter"):
+            where_clause = (
+                " WHERE "
+                + pg_index_predicate(str(idx["filter"]), table.get("columns") or [])
+            )
+        index_name = _allocate_index_name(table["name"], str(idx["name"]), used_names)
+        if index_name != idx["name"]:
+            print(
+                f"Index {idx['name']} on {label} created as {index_name} "
+                f"(name already used in the target schema)",
+                file=sys.stderr,
+            )
+        unique = "UNIQUE " if idx.get("unique") else ""
+        cols = ", ".join(key_parts)
         stmts.append(
-            f"CREATE {unique}INDEX IF NOT EXISTS {idx_name} "
-            f"ON {qualified} ({cols}){include_clause};"
+            f"CREATE {unique}INDEX IF NOT EXISTS {pg_quote_ident(index_name)} "
+            f"ON {qualified} ({cols}){include_clause}{where_clause};"
         )
+    return stmts
+
+
+def index_statements(
+    schema_doc: dict[str, Any], target_schema: str | None
+) -> list[str]:
+    tables = schema_doc.get("tables", [])
+    used_by_schema: dict[str, set[str]] = {}
+    for table in tables:
+        pg_schema = pg_schema_name(table["schema"], target_schema)
+        used = used_by_schema.setdefault(pg_schema, set())
+        used.add(table["name"])
+        used.add(f"{table['name']}_pkey")
+    stmts: list[str] = []
+    for table in tables:
+        pg_schema = pg_schema_name(table["schema"], target_schema)
+        stmts.extend(index_sql(table, target_schema, used_by_schema[pg_schema]))
     return stmts
 
 
@@ -129,11 +250,26 @@ def apply_schema(
                 ):
                     cur.execute(sql)
 
+        index_count = 0
         if not skip_indexes:
-            for table in tables:
-                for sql in index_sql(table, target_schema):
-                    cur.execute(sql)
+            for sql in index_statements(schema_doc, target_schema):
+                cur.execute(sql)
+                index_count += 1
     conn.commit()
+    if not skip_indexes:
+        print(f"Indexes: {index_count}")
+
+
+def apply_indexes(
+    conn: Any, schema_doc: dict[str, Any], target_schema: str | None
+) -> None:
+    """Create non-PK indexes on tables that already exist."""
+    statements = index_statements(schema_doc, target_schema)
+    with conn.cursor() as cur:
+        for sql in statements:
+            cur.execute(sql)
+    conn.commit()
+    print(f"Indexes: {len(statements)}")
 
 
 def reset_identity_sequences(

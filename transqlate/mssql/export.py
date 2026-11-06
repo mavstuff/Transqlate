@@ -125,7 +125,8 @@ def run_export(args: argparse.Namespace) -> int:
         )
         write_schema(work_dir, schema_doc)
         import_order = topological_table_order(schema_doc)
-        print(f"Tables: {len(import_order)}")
+        index_count = sum(len(t.get("indexes") or []) for t in schema_doc["tables"])
+        print(f"Tables: {len(import_order)}; indexes: {index_count}")
 
         row_counts: dict[str, int] = {}
         table_columns: dict[str, list[str]] = {}
