@@ -4,6 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
+STRING_DATA_TYPES = frozenset(
+    {"char", "nchar", "varchar", "nvarchar", "text", "ntext", "xml"}
+)
+
+
+def is_string_type(data_type: str | None) -> bool:
+    return (data_type or "").lower() in STRING_DATA_TYPES
+
 
 def pg_type_for_column(col: dict[str, Any]) -> str:
     """Return a PostgreSQL type string for a discovered MSSQL column."""

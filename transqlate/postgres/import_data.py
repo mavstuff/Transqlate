@@ -18,11 +18,13 @@ from transqlate.dump_format import (
     pg_column_list,
     read_manifest,
     read_schema,
+    strip_nul,
     table_key,
     table_rel_path,
     topological_table_order,
 )
 from transqlate.postgres.connection import connect_postgres, ensure_psycopg2
+from transqlate.types_map import is_string_type
 from transqlate.postgres.schema import (
     apply_schema,
     qualified_pg_table,
@@ -35,10 +37,12 @@ def parse_cell(value: str | None, col: dict[str, Any]) -> Any:
     if value is None:
         return None
     data_type = (col.get("data_type") or "").lower()
-    if data_type == "bit":
-        return value.lower() == "true"
     if data_type in ("binary", "varbinary", "image"):
         return bytes.fromhex(value) if value else None
+    if is_string_type(data_type):
+        value = strip_nul(value)
+    if data_type == "bit":
+        return value.lower() == "true"
     return value
 
 

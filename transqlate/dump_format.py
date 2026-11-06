@@ -11,10 +11,29 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+from transqlate.types_map import is_string_type
+
 FORMAT_NAME = "transqlate-tsv"
 FORMAT_VERSION = 1
 SCHEMA_FILE = "schema.json"
 MANIFEST_FILE = "manifest.json"
+
+_nul_strip_warned = False
+
+
+def strip_nul(value: str) -> str:
+    """Drop NUL bytes. PostgreSQL text cannot store them; SQL Server strings can."""
+    if "\x00" not in value:
+        return value
+    global _nul_strip_warned
+    if not _nul_strip_warned:
+        _nul_strip_warned = True
+        print(
+            "Warning: removed NUL (0x00) characters from text values. "
+            "PostgreSQL cannot store them in strings.",
+            flush=True,
+        )
+    return value.replace("\x00", "")
 
 
 def table_key(schema: str, table: str) -> str:
@@ -25,7 +44,7 @@ def table_rel_path(schema: str, table: str) -> Path:
     return Path(schema) / f"{table}.tsv"
 
 
-def serialize_cell(value: Any) -> str:
+def serialize_cell(value: Any, data_type: str | None = None) -> str:
     if value is None:
         return ""
     if isinstance(value, bool):
@@ -38,11 +57,19 @@ def serialize_cell(value: Any) -> str:
         return value.hex()
     if isinstance(value, memoryview):
         return bytes(value).hex()
+    if isinstance(value, str):
+        if is_string_type(data_type):
+            return strip_nul(value)
+        return value
     return str(value)
 
 
-def row_to_tsv_cells(row: Sequence[Any]) -> list[str]:
-    return [serialize_cell(v) for v in row]
+def row_to_tsv_cells(
+    row: Sequence[Any], data_types: Sequence[str] | None = None
+) -> list[str]:
+    if not data_types:
+        return [serialize_cell(v) for v in row]
+    return [serialize_cell(v, data_type) for v, data_type in zip(row, data_types)]
 
 
 def open_tsv_writer(path: Path) -> tuple[Any, csv.writer]:

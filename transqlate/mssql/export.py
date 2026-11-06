@@ -75,7 +75,11 @@ def export_table(
                         values = [row.get(c) for c in col_names]
                     else:
                         values = list(row)
-                    writer.writerow(row_to_tsv_cells(values))
+                    writer.writerow(
+                        row_to_tsv_cells(
+                            values, [c.get("data_type", "") for c in columns]
+                        )
+                    )
                     count += 1
                 if count and count % 10000 == 0:
                     print(f"  {schema}.{table}: {count} rows...", flush=True)
