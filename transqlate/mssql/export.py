@@ -37,6 +37,17 @@ def add_export_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--mssql-user", default=env("MSSQL_USER"))
     parser.add_argument("--mssql-password", default=env("MSSQL_PASSWORD"))
     parser.add_argument(
+        "--mssql-tds-version",
+        default=env("MSSQL_TDS_VERSION", "7.4"),
+        help="TDS version. SQL Server 2014 needs 7.4",
+    )
+    parser.add_argument(
+        "--mssql-encryption",
+        default=env("MSSQL_ENCRYPTION", "off"),
+        choices=("off", "request", "require"),
+        help="TDS encryption. SQL Server 2014 needs off",
+    )
+    parser.add_argument(
         "--mssql-schemas",
         default=env("MSSQL_SCHEMAS", "dbo"),
         help="Comma-separated schemas to export (default: dbo)",
