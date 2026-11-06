@@ -48,12 +48,6 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/SQL%20Server-%E2%86%92%20PostgreSQL-336791?logo=postgresql&logoColor=white" alt="SQL Server to PostgreSQL">
-  <a href="https://pypi.org/project/transqlate/">
-    <img src="https://img.shields.io/pypi/v/transqlate?style=flat-square&logo=pypi" alt="PyPI version">
-  </a>
-  <a href="https://pypi.org/project/transqlate/">
-    <img src="https://img.shields.io/pypi/dm/transqlate?style=flat-square&logo=pypi" alt="PyPI downloads">
-  </a>
   <a href="https://github.com/mavstuff/Transqlate/issues?q=label%3Asecurity+is%3Aopen">
     <img src="https://img.shields.io/github/issues-search/mavstuff/Transqlate?query=label%3Asecurity+is%3Aopen&style=flat-square&label=security%20issues" alt="Security issues">
   </a>
