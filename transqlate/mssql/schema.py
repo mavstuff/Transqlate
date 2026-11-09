@@ -100,7 +100,10 @@ def discover_schema(
                 fk_col.constraint_column_id AS ordinal_position,
                 ref_sch.name AS referenced_schema,
                 ref_tab.name AS referenced_table,
-                ref_col.name AS referenced_column
+                ref_col.name AS referenced_column,
+                fk.delete_referential_action_desc AS on_delete,
+                fk.update_referential_action_desc AS on_update,
+                CAST(fk.is_disabled AS int) AS is_disabled
             FROM sys.foreign_keys fk
             JOIN sys.foreign_key_columns fk_col ON fk.object_id = fk_col.constraint_object_id
             JOIN sys.tables tab ON fk.parent_object_id = tab.object_id
@@ -176,6 +179,8 @@ def discover_schema(
 
     fks_by_table: dict[str, list[dict[str, Any]]] = {}
     for row in fk_rows:
+        if row.get("is_disabled"):
+            continue
         key = table_key(row["table_schema"], row["table_name"])
         fks_by_table.setdefault(key, [])
         existing = next(
@@ -189,6 +194,8 @@ def discover_schema(
                 "referenced_schema": row["referenced_schema"],
                 "referenced_table": row["referenced_table"],
                 "referenced_columns": [],
+                "on_delete": row.get("on_delete") or "NO_ACTION",
+                "on_update": row.get("on_update") or "NO_ACTION",
             }
             fks_by_table[key].append(existing)
         existing["columns"].append(row["column_name"])

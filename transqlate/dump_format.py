@@ -5,6 +5,7 @@ Transqlate portable dump format: UTF-8 TSV tables + manifest.json + schema.json.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from datetime import date, datetime
 from decimal import Decimal
@@ -144,8 +145,21 @@ def read_manifest(dump_dir: Path) -> dict[str, Any]:
     return manifest
 
 
+def pg_identifier(name: str, *, limit: int = 63) -> str:
+    """Fit a SQL Server identifier into PostgreSQL's 63-byte name limit."""
+    encoded = name.encode("utf-8")
+    if len(encoded) <= limit:
+        return name
+    digest = hashlib.sha1(encoded).hexdigest()[:8]
+    budget = limit - len(digest) - 1
+    trimmed = encoded[:budget]
+    while trimmed and (trimmed[-1] & 0xC0) == 0x80:
+        trimmed = trimmed[:-1]
+    return trimmed.decode("utf-8") + "_" + digest
+
+
 def pg_quote_ident(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
+    return '"' + pg_identifier(name).replace('"', '""') + '"'
 
 
 def pg_column_list(columns: Sequence[str]) -> str:

@@ -65,12 +65,24 @@ def create_table_sql(
     return stmts
 
 
+def pg_referential_action(action: str | None) -> str:
+    """Map a SQL Server referential action to PostgreSQL syntax."""
+    if not action:
+        return "NO ACTION"
+    normalized = action.upper().replace("_", " ").strip()
+    if normalized in {"NO ACTION", "CASCADE", "SET NULL", "SET DEFAULT", "RESTRICT"}:
+        return normalized
+    return "NO ACTION"
+
+
 def foreign_key_sql(
     table: dict[str, Any], target_schema: str | None, *, drop_if_exists: bool
 ) -> list[str]:
     stmts: list[str] = []
     qualified = qualified_pg_table(table["schema"], table["name"], target_schema)
     for fk in table.get("foreign_keys", []):
+        if fk.get("is_disabled"):
+            continue
         name = fk["name"]
         if drop_if_exists:
             stmts.append(
@@ -81,9 +93,12 @@ def foreign_key_sql(
             fk["referenced_schema"], fk["referenced_table"], target_schema
         )
         ref_cols = ", ".join(pg_quote_ident(c) for c in fk["referenced_columns"])
+        on_delete = pg_referential_action(fk.get("on_delete"))
+        on_update = pg_referential_action(fk.get("on_update"))
         stmts.append(
             f"ALTER TABLE {qualified} ADD CONSTRAINT {pg_quote_ident(name)} "
-            f"FOREIGN KEY ({local_cols}) REFERENCES {ref_qualified} ({ref_cols});"
+            f"FOREIGN KEY ({local_cols}) REFERENCES {ref_qualified} ({ref_cols}) "
+            f"ON DELETE {on_delete} ON UPDATE {on_update};"
         )
     return stmts
 
